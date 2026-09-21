@@ -76,6 +76,30 @@ CREATE TABLE IF NOT EXISTS `producto` (
 );
 
 -- =============================================
+-- Tablas del módulo de ventas
+-- =============================================
+CREATE TABLE IF NOT EXISTS `venta` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `usuario_id` int NOT NULL,
+  `fecha` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `total` decimal(10,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `venta_usuario_fk` FOREIGN KEY (`usuario_id`) REFERENCES `auth_user` (`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `detalle_venta` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `venta_id` bigint NOT NULL,
+  `producto_id` bigint NOT NULL,
+  `cantidad` int unsigned NOT NULL,
+  `precio_unitario` decimal(10,2) NOT NULL,
+  `subtotal` decimal(10,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `detalle_venta_venta_fk` FOREIGN KEY (`venta_id`) REFERENCES `venta` (`id`),
+  CONSTRAINT `detalle_venta_producto_fk` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id`)
+);
+
+-- =============================================
 -- NOTA SOBRE USUARIOS
 -- Los usuarios no se incluyen en este script porque las contraseñas
 -- requieren el hash de Django. Para crearlos, ejecutar:
