@@ -464,3 +464,12 @@ class VentaViewSet(viewsets.ModelViewSet):
                 {'error': f'Error al eliminar la venta: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            
+    def get_permissions(self):
+        """
+        - DELETE: solo Administrador
+        - Otros métodos (GET, POST): cualquier usuario autenticado
+        """
+        if self.action == 'destroy':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
