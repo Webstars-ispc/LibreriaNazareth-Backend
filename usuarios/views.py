@@ -5,11 +5,7 @@ from .permissions import IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 #CRUD Usuario
-class RegisterView(generics.CreateAPIView):
-    permission_classes = (permissions.AllowAny,)
-    queryset = User.objects.all()
-    serializer_class = RegisterSerializer
-
+#Eliminamos RegisterView porque no queremos que los usuarios se registren por sí mismos, solo el administrador puede crear usuarios.
 class LoginView(TokenObtainPairView):
     permission_classes = (permissions.AllowAny,)
     serializer_class = EmailTokenObtainPairSerializer
