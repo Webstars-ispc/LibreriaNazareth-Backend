@@ -3,8 +3,9 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import Http404
-from .models import Rubro, Marca, Producto
-from .serializers import RubroSerializer, MarcaSerializer, ProductoSerializer, estandarizar
+from django.db import transaction
+from .models import Rubro, Marca, Producto, Venta, DetalleVenta
+from .serializers import RubroSerializer, MarcaSerializer, ProductoSerializer, estandarizar, VentaSerializer, VentaCreateSerializer    
 from decimal import Decimal, ROUND_HALF_UP
 from usuarios.permissions import IsAdminUser
 
@@ -357,3 +358,109 @@ def aumento_individual(request):
     return Response({
         'mensaje': f'Aumento del {porcentaje}% aplicado a "{producto.nombre}". Nuevo precio: ${producto.precio_venta}.',
     }, status=status.HTTP_200_OK)
+    
+    
+    
+class VentaViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar ventas.
+    - GET /api/ventas/ → Lista todas las ventas
+    - GET /api/ventas/{id}/ → Ver detalle de una venta
+    - POST /api/ventas/ → Registrar una nueva venta (con descuento de stock)
+    - DELETE /api/ventas/{id}/ → Eliminar una venta (revierte stock) [solo admin]
+    """
+    queryset = Venta.objects.all()
+    serializer_class = VentaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        serializer = VentaCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        productos_data = serializer.validated_data['productos']
+
+        try:
+            with transaction.atomic():  # Si algo falla, no se guarda nada
+                # 1. Crear la venta (sin total todavía)
+                venta = Venta.objects.create(
+                    usuario=request.user,
+                    total=Decimal('0.00')
+                )
+
+                total_venta = Decimal('0.00')
+
+                # 2. Procesar cada producto
+                for item in productos_data:
+                    producto_id = item['producto_id']
+                    cantidad = int(item['cantidad'])
+
+                    try:
+                        producto = Producto.objects.get(id=producto_id)
+                    except Producto.DoesNotExist:
+                        raise ValueError(f'El producto con ID {producto_id} no existe.')
+
+                    if producto.stock < cantidad:
+                        raise ValueError(
+                            f'Stock insuficiente para "{producto.nombre}". '
+                            f'Disponible: {producto.stock}, solicitado: {cantidad}.'
+                        )
+
+                    # Calcular subtotal con el precio actual del producto
+                    precio_unitario = producto.precio_venta
+                    subtotal = precio_unitario * cantidad
+
+                    # Crear el detalle
+                    DetalleVenta.objects.create(
+                        venta=venta,
+                        producto=producto,
+                        cantidad=cantidad,
+                        precio_unitario=precio_unitario,
+                        subtotal=subtotal
+                    )
+
+                    # Descontar stock
+                    producto.stock -= cantidad
+                    producto.save()
+
+                    total_venta += subtotal
+
+                # 3. Actualizar el total de la venta
+                venta.total = total_venta
+                venta.save()
+
+            # 4. Devolver la venta creada con sus detalles
+            return Response(
+                VentaSerializer(venta).data,
+                status=status.HTTP_201_CREATED
+            )
+
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {'error': f'Error al registrar la venta: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def destroy(self, request, *args, **kwargs):
+        """Elimina una venta y revierte el stock de los productos vendidos."""
+        try:
+            venta = self.get_object()
+        except Http404:
+            return Response({'error': 'Venta no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            with transaction.atomic():
+                # Revertir el stock de cada producto
+                for detalle in venta.detalles.all():
+                    producto = detalle.producto
+                    producto.stock += detalle.cantidad
+                    producto.save()
+                venta.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response(
+                {'error': f'Error al eliminar la venta: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

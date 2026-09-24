@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Rubro, Marca, Producto
+from .models import Rubro, Marca, Producto, Venta, DetalleVenta
 from unidecode import unidecode
 
 def estandarizar(texto):
@@ -77,3 +77,42 @@ class ProductoSerializer(serializers.ModelSerializer):
             validated_data['descripcion'] = estandarizar(validated_data['descripcion'])
         validated_data = self._resolve_marca(validated_data)
         return super().update(instance, validated_data)
+    
+
+
+class DetalleVentaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DetalleVenta
+        fields = ['id', 'producto', 'cantidad', 'precio_unitario', 'subtotal']
+        read_only_fields = ['precio_unitario', 'subtotal']
+
+
+class VentaSerializer(serializers.ModelSerializer):
+    detalles = DetalleVentaSerializer(many=True, read_only=True)
+    usuario_nombre = serializers.CharField(source='usuario.username', read_only=True)
+
+    class Meta:
+        model = Venta
+        fields = ['id', 'usuario', 'usuario_nombre', 'fecha', 'total', 'detalles']
+        read_only_fields = ['usuario', 'fecha', 'total']
+
+
+class VentaCreateSerializer(serializers.Serializer):
+    productos = serializers.ListField(
+        child=serializers.DictField(),
+        allow_empty=False
+    )
+
+    def validate_productos(self, value):
+        for item in value:
+            if 'producto_id' not in item or 'cantidad' not in item:
+                raise serializers.ValidationError(
+                    'Cada producto debe tener "producto_id" y "cantidad".'
+                )
+            try:
+                cantidad = int(item['cantidad'])
+                if cantidad <= 0:
+                    raise serializers.ValidationError('La cantidad debe ser mayor a 0.')
+            except (ValueError, TypeError):
+                raise serializers.ValidationError('La cantidad debe ser un número entero.')
+        return value
