@@ -1,0 +1,74 @@
+# ENDPOINTS DE LA API - LIBRERIA NAZARETH
+
+## Autenticación
+
+| Método | Endpoint              | Descripción        | Acceso      | 
+|-------------------------------------------------------------------|
+| POST   | `/api/auth/login/`    | Iniciar sesión     | Público     |
+| POST   | `/api/auth/refresh/`  | Refrescar token    | Público     |
+| GET    | `/api/auth/me/`       | Perfil del usuario | Autenticado |
+
+## Gestión de Usuarios
+
+| Método | Endpoint                     | Descripción       | Acceso |
+|--------------------------------------------------------------------|
+| GET    | `/api/auth/usuarios/`        | Listar usuarios   | Admin  |
+| POST   | `/api/auth/usuarios/create/` | Crear usuario     | Admin  |
+| GET    | `/api/auth/usuarios/{id}/`   | Ver usuario       | Admin  |
+| PUT    | `/api/auth/usuarios/{id}/`   | Modificar usuario | Admin  |
+| DELETE | `/api/auth/usuarios/{id}/`   | Eliminar usuario  | Admin  |
+
+## Productos
+
+| Método | Endpoint               | Descripción        | Acceso      |
+|--------------------------------------------------------------------|
+| GET    | `/api/productos/`      | Listar productos   | Autenticado |
+| POST   | `/api/productos/`      | Crear producto     | Autenticado |
+| GET    | `/api/productos/{id}/` | Ver producto       | Autenticado |
+| PUT    | `/api/productos/{id}/` | Modificar producto | Autenticado |
+| DELETE | `/api/productos/{id}/` | Eliminar producto  | Admin       |
+
+## Rubros
+
+| Método | Endpoint            | Descripción     | Acceso      |
+|--------------------------------------------------------------|
+| GET    | `/api/rubros/`      | Listar rubros   | Autenticado |
+| POST   | `/api/rubros/`      | Crear rubro     | Autenticado |
+| GET    | `/api/rubros/{id}/` | Ver rubro       | Autenticado |
+| PUT    | `/api/rubros/{id}/` | Modificar rubro | Autenticado |
+| DELETE | `/api/rubros/{id}/` | Eliminar rubro  | Autenticado |
+
+## Marcas
+
+| Método | Endpoint            | Descripción     | Acceso      |
+|--------------------------------------------------------------|
+| GET    | `/api/marcas/`      | Listar marcas   | Autenticado |
+| POST   | `/api/marcas/`      | Crear marca     | Autenticado |
+| GET    | `/api/marcas/{id}/` | Ver marca       | Autenticado |
+| PUT    | `/api/marcas/{id}/` | Modificar marca | Autenticado |
+| DELETE | `/api/marcas/{id}/` | Eliminar marca  | Autenticado |
+
+## Carga Masiva
+
+| Método | Endpoint             | Descripción                  | Acceso      |
+|----------------------------------------------------------------------------|
+| POST   | `/api/cargar-excel/` | Cargar productos desde Excel | Autenticado |
+
+## Aumentos Masivos
+
+| Método | Endpoint                    | Descripción        | Acceso      |
+|-------------------------------------------------------------------------|
+| POST   | `/api/aumentos/general/`    | Aumento general    | Autenticado |
+| POST   | `/api/aumentos/rubro/`      | Aumento por rubro  | Autenticado |
+| POST   | `/api/aumentos/marca/`      | Aumento por marca  | Autenticado |
+| POST   | `/api/aumentos/individual/` | Aumento individual | Autenticado |
+
+## Ventas (NUEVO)
+
+| Método | Endpoint            | Descripción                             | Acceso      |
+|--------------------------------------------------------------------------------------|
+| GET    | `/api/ventas/`      | Listar todas las ventas                 | Autenticado |
+| POST   | `/api/ventas/`      | Registrar nueva venta (descuenta stock) | Autenticado |
+| GET    | `/api/ventas/{id}/` | Ver detalle de una venta                | Autenticado |
+| DELETE | `/api/ventas/{id}/` | Eliminar venta (revierte stock)         | Admin       |
+  
