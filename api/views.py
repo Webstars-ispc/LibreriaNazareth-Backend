@@ -6,6 +6,7 @@ from django.http import Http404
 from .models import Rubro, Marca, Producto
 from .serializers import RubroSerializer, MarcaSerializer, ProductoSerializer, estandarizar
 from decimal import Decimal, ROUND_HALF_UP
+from usuarios.permissions import IsAdminUser
 
 import openpyxl
 from unidecode import unidecode
@@ -65,6 +66,11 @@ class MarcaViewSet(CustomModelViewSet):
 class ProductoViewSet(CustomModelViewSet):
     queryset = Producto.objects.all()
     serializer_class = ProductoSerializer
+    
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
 
 
 
