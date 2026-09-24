@@ -59,10 +59,22 @@ class CustomModelViewSet(viewsets.ModelViewSet):
 class RubroViewSet(CustomModelViewSet):
     queryset = Rubro.objects.all()
     serializer_class = RubroSerializer
+    
+    def get_permissions(self):
+            if self.action == 'destroy':
+                return [IsAdminUser()]
+            return [IsAuthenticated()]
+        
 
 class MarcaViewSet(CustomModelViewSet):
     queryset = Marca.objects.all()
     serializer_class = MarcaSerializer
+    
+    def get_permissions(self):
+            if self.action == 'destroy':
+                return [IsAdminUser()]
+            return [IsAuthenticated()]
+        
 
 class ProductoViewSet(CustomModelViewSet):
     queryset = Producto.objects.all()
