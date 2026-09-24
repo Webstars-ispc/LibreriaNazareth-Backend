@@ -7,6 +7,8 @@ from django.db import transaction
 from .models import Rubro, Marca, Producto, Venta, DetalleVenta
 from .serializers import RubroSerializer, MarcaSerializer, ProductoSerializer, estandarizar, VentaSerializer, VentaCreateSerializer    
 from decimal import Decimal, ROUND_HALF_UP
+from usuarios.permissions import IsAdminUser
+
 import openpyxl
 from unidecode import unidecode
 
@@ -57,14 +59,31 @@ class CustomModelViewSet(viewsets.ModelViewSet):
 class RubroViewSet(CustomModelViewSet):
     queryset = Rubro.objects.all()
     serializer_class = RubroSerializer
+    
+    def get_permissions(self):
+            if self.action == 'destroy':
+                return [IsAdminUser()]
+            return [IsAuthenticated()]
+        
 
 class MarcaViewSet(CustomModelViewSet):
     queryset = Marca.objects.all()
     serializer_class = MarcaSerializer
+    
+    def get_permissions(self):
+            if self.action == 'destroy':
+                return [IsAdminUser()]
+            return [IsAuthenticated()]
+        
 
 class ProductoViewSet(CustomModelViewSet):
     queryset = Producto.objects.all()
     serializer_class = ProductoSerializer
+    
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
 
 
 
@@ -457,3 +476,12 @@ class VentaViewSet(viewsets.ModelViewSet):
                 {'error': f'Error al eliminar la venta: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            
+    def get_permissions(self):
+        """
+        - DELETE: solo Administrador
+        - Otros métodos (GET, POST): cualquier usuario autenticado
+        """
+        if self.action == 'destroy':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
