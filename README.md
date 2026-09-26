@@ -106,6 +106,10 @@ Abrí el Panel de Control de XAMPP y hacé clic en Start en la fila de MySQL. De
 * Crear la base de datos: 
 Abrí phpMyAdmin (http://localhost/phpmyadmin) y creá una base de datos con el nombre LibreriaNazareth (o el que prefieras) con cotejamiento utf8mb4_general_ci.
 
+* Averiguar tu IP local (ej. `192.168.0.15`), esta se reemplazará en el archivo .env_modelo donde dice "TU-IPv4":
+   ```bash
+   ipconfig        # en cmd Windows
+   ```
 * Configurar variables de entorno: abri tu editor de codigo, dirigite a la carpeta BackEnd y modifica el archivo ".env_modelo" con tus credenciales:
 ```bash
 SECRET_KEY=tu-clave-secreta #la genera django al crear el proyecto
@@ -115,6 +119,9 @@ DB_USER=root
 DB_PASSWORD=         # En XAMPP suele estar vacío
 DB_HOST=localhost
 DB_PORT=3306
+LLOWED_HOSTS=TU-IPv4,localhost,127.0.0.1 # Listar dominios. En desarrollo dejar vacio (localhost). En produccion agregar dominio real
+CSRF_TRUSTED_ORIGINS=http://TU-IPv4:8000,http://localhost:8000
+CORS_ALLOWED_ORIGINS=http://localhost:4200,http://TU-IPv4:8000
 ```
 (En caso de que no tengas una clave secreta, generala aleatoriamente: 
 ```bash
