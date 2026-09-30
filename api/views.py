@@ -16,6 +16,12 @@ class CustomModelViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -79,6 +85,13 @@ class MarcaViewSet(CustomModelViewSet):
 class ProductoViewSet(CustomModelViewSet):
     queryset = Producto.objects.all()
     serializer_class = ProductoSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        codigo_barras = self.request.query_params.get('codigo_barras')
+        if codigo_barras:
+            queryset = queryset.filter(codigo_barras=codigo_barras)
+        return queryset
     
     def get_permissions(self):
         if self.action == 'destroy':
