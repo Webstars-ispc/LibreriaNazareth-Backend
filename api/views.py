@@ -91,6 +91,11 @@ class ProductoViewSet(CustomModelViewSet):
         codigo_barras = self.request.query_params.get('codigo_barras')
         if codigo_barras:
             queryset = queryset.filter(codigo_barras=codigo_barras)
+            
+        search = self.request.query_params.get('search')
+        if search:
+            return queryset.filter(nombre__icontains=search)   
+            
         return queryset
     
     def get_permissions(self):
