@@ -4,24 +4,30 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import Http404
 from django.db import transaction
+from django.utils import timezone
 from .models import Rubro, Marca, Producto, Venta, DetalleVenta
-from .serializers import RubroSerializer, MarcaSerializer, ProductoSerializer, estandarizar, VentaSerializer, VentaCreateSerializer    
+from .serializers import (
+    RubroSerializer, MarcaSerializer, ProductoSerializer, estandarizar,
+    VentaSerializer, VentaListSerializer, VentaCreateSerializer
+)
 from decimal import Decimal, ROUND_HALF_UP
 from usuarios.permissions import IsAdminUser
 
 import openpyxl
 from unidecode import unidecode
 
+
 class CustomModelViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-        
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-        
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -65,39 +71,40 @@ class CustomModelViewSet(viewsets.ModelViewSet):
 class RubroViewSet(CustomModelViewSet):
     queryset = Rubro.objects.all()
     serializer_class = RubroSerializer
-    
+
     def get_permissions(self):
-            if self.action == 'destroy':
-                return [IsAdminUser()]
-            return [IsAuthenticated()]
-        
+        if self.action == 'destroy':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
 
 class MarcaViewSet(CustomModelViewSet):
     queryset = Marca.objects.all()
     serializer_class = MarcaSerializer
-    
+
     def get_permissions(self):
-            if self.action == 'destroy':
-                return [IsAdminUser()]
-            return [IsAuthenticated()]
-        
+        if self.action == 'destroy':
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
 
 class ProductoViewSet(CustomModelViewSet):
     queryset = Producto.objects.all()
     serializer_class = ProductoSerializer
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
+
         codigo_barras = self.request.query_params.get('codigo_barras')
         if codigo_barras:
-            queryset = queryset.filter(codigo_barras=codigo_barras)
-            
+            return queryset.filter(codigo_barras=codigo_barras)
+
         search = self.request.query_params.get('search')
         if search:
-            return queryset.filter(nombre__icontains=search)   
-            
+            return queryset.filter(nombre__icontains=search)
+
         return queryset
-    
+
     def get_permissions(self):
         if self.action == 'destroy':
             return [IsAdminUser()]
@@ -126,7 +133,6 @@ def cargar_excel(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Obtener o crear el rubro por defecto para productos sin rubro
     rubro_default, _ = Rubro.objects.get_or_create(nombre='SIN RUBRO')
 
     creados = 0
@@ -137,7 +143,6 @@ def cargar_excel(request):
     if len(filas) < 2:
         return Response({'error': 'La hoja PRODUCTOS debe tener al menos una fila de encabezados y una de datos.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # --- Leer encabezados (primera fila) ---
     encabezados = filas[0]
     columnas = {}
     for idx, nombre_col in enumerate(encabezados):
@@ -158,34 +163,28 @@ def cargar_excel(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # --- Procesar filas de datos (desde la fila 2) ---
     for i, fila in enumerate(filas[1:], start=2):
         if not fila or all(c is None for c in fila):
             continue
 
-        # Nombre del producto (obligatorio)
         nombre = estandarizar(str(fila[nombre_idx])) if fila[nombre_idx] else ''
         if not nombre:
             continue
 
-        # Rubro
-        rubro = rubro_default  # por defecto si no hay rubro en el Excel
+        rubro = rubro_default
         if rubro_idx is not None and fila[rubro_idx]:
             rubro_nombre = estandarizar(str(fila[rubro_idx]))
             if rubro_nombre:
                 rubro, _ = Rubro.objects.get_or_create(nombre=rubro_nombre)
 
-        # Marca
         marca = None
         if marca_idx is not None and fila[marca_idx]:
             marca_nombre = estandarizar(str(fila[marca_idx]))
             if marca_nombre:
                 marca, _ = Marca.objects.get_or_create(nombre=marca_nombre)
 
-        # Código de barras
         codigo_barras = str(fila[codigo_idx]).strip() if codigo_idx is not None and fila[codigo_idx] else ''
 
-        # Precios
         try:
             precio_costo = float(fila[costo_idx]) if costo_idx is not None and fila[costo_idx] is not None else 0.0
         except (ValueError, TypeError):
@@ -196,13 +195,11 @@ def cargar_excel(request):
         except (ValueError, TypeError):
             precio_venta = 0.0
 
-        # Stock
         try:
             stock = int(float(fila[stock_idx])) if stock_idx is not None and fila[stock_idx] is not None else 0
         except (ValueError, TypeError):
             stock = 0
 
-        # --- Guardar producto ---
         try:
             if codigo_barras:
                 prod, creado = Producto.objects.update_or_create(
@@ -221,7 +218,6 @@ def cargar_excel(request):
                 else:
                     actualizados += 1
             else:
-                # Sin código de barras: usar nombre + rubro para evitar duplicados
                 prod, creado = Producto.objects.update_or_create(
                     nombre=nombre,
                     rubro=rubro,
@@ -245,14 +241,14 @@ def cargar_excel(request):
 
     return Response({'mensaje': mensaje}, status=status.HTTP_200_OK)
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def aumento_general(request):
-    """Aplica un porcentaje de aumento a TODOS los productos."""
     porcentaje = request.data.get('porcentaje')
     if porcentaje is None:
         return Response({'error': 'El campo "porcentaje" es obligatorio.'}, status=status.HTTP_400_BAD_REQUEST)
-    
+
     try:
         porcentaje = float(porcentaje)
     except (ValueError, TypeError):
@@ -260,14 +256,10 @@ def aumento_general(request):
 
     productos = Producto.objects.all()
     actualizados = 0
-    
+
     for producto in productos:
-        # Calcular el nuevo precio
         nuevo_precio = producto.precio_venta * (Decimal('1') + Decimal(str(porcentaje)) / Decimal('100'))
-
-        # Redondear a múltiplos de 100
         nuevo_precio = (nuevo_precio / Decimal('100')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('100')
-
         producto.precio_venta = nuevo_precio
         producto.save()
         actualizados += 1
@@ -281,7 +273,6 @@ def aumento_general(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def aumento_por_rubro(request):
-    """Aplica un porcentaje de aumento a todos los productos de un rubro."""
     rubro_id = request.data.get('rubro_id')
     porcentaje = request.data.get('porcentaje')
 
@@ -302,10 +293,7 @@ def aumento_por_rubro(request):
     actualizados = 0
 
     for producto in productos:
-        # Calcular el nuevo precio
         nuevo_precio = producto.precio_venta * (Decimal('1') + Decimal(str(porcentaje)) / Decimal('100'))
-
-        # Redondear a múltiplos de 100
         nuevo_precio = (nuevo_precio / Decimal('100')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('100')
         producto.precio_venta = nuevo_precio
         producto.save()
@@ -320,7 +308,6 @@ def aumento_por_rubro(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def aumento_por_marca(request):
-    """Aplica un porcentaje de aumento a todos los productos de una marca."""
     marca_id = request.data.get('marca_id')
     porcentaje = request.data.get('porcentaje')
 
@@ -341,12 +328,8 @@ def aumento_por_marca(request):
     actualizados = 0
 
     for producto in productos:
-        # Calcular el nuevo precio
         nuevo_precio = producto.precio_venta * (Decimal('1') + Decimal(str(porcentaje)) / Decimal('100'))
-
-        # Redondear a múltiplos de 100
         nuevo_precio = (nuevo_precio / Decimal('100')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('100')
-
         producto.precio_venta = nuevo_precio
         producto.save()
         actualizados += 1
@@ -360,7 +343,6 @@ def aumento_por_marca(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def aumento_individual(request):
-    """Aplica un porcentaje de aumento a un producto específico."""
     producto_id = request.data.get('producto_id')
     porcentaje = request.data.get('porcentaje')
 
@@ -377,10 +359,7 @@ def aumento_individual(request):
     except Producto.DoesNotExist:
         return Response({'error': 'El producto especificado no existe.'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Calcular el nuevo precio
     nuevo_precio = producto.precio_venta * (Decimal('1') + Decimal(str(porcentaje)) / Decimal('100'))
-
-    # Redondear a múltiplos de 100
     nuevo_precio = (nuevo_precio / Decimal('100')).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * Decimal('100')
     producto.precio_venta = nuevo_precio
     producto.save()
@@ -388,20 +367,40 @@ def aumento_individual(request):
     return Response({
         'mensaje': f'Aumento del {porcentaje}% aplicado a "{producto.nombre}". Nuevo precio: ${producto.precio_venta}.',
     }, status=status.HTTP_200_OK)
-    
-    
-    
+
+
+# VENTAS
+
 class VentaViewSet(viewsets.ModelViewSet):
     """
-    ViewSet para gestionar ventas.
-    - GET /api/ventas/ → Lista todas las ventas
-    - GET /api/ventas/{id}/ → Ver detalle de una venta
-    - POST /api/ventas/ → Registrar una nueva venta (con descuento de stock)
-    - DELETE /api/ventas/{id}/ → Eliminar una venta (revierte stock) [solo admin]
+    - GET /api/ventas/ → Lista ventas (sin detalles)
+    - GET /api/ventas/?filtro=hoy → Ventas del día
+    - GET /api/ventas/?filtro=mes → Ventas del mes
+    - GET /api/ventas/{id}/ → Detalle completo (con detalles)
+    - POST /api/ventas/ → Registrar venta
+    - DELETE /api/ventas/{id}/ → Eliminar venta [solo admin]
     """
     queryset = Venta.objects.all()
     serializer_class = VentaSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return VentaListSerializer
+        return VentaSerializer
+
+    def get_queryset(self):
+        queryset = Venta.objects.all()
+
+        filtro = self.request.query_params.get('filtro')
+        if filtro == 'hoy':
+            hoy = timezone.localtime(timezone.now()).date()
+            queryset = queryset.filter(fecha__date=hoy)
+        elif filtro == 'mes':
+            ahora = timezone.localtime(timezone.now())
+            queryset = queryset.filter(fecha__year=ahora.year, fecha__month=ahora.month)
+
+        return queryset.order_by('-fecha')
 
     def create(self, request, *args, **kwargs):
         serializer = VentaCreateSerializer(data=request.data)
@@ -411,8 +410,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         productos_data = serializer.validated_data['productos']
 
         try:
-            with transaction.atomic():  # Si algo falla, no se guarda nada
-                # 1. Crear la venta (sin total todavía)
+            with transaction.atomic():
                 venta = Venta.objects.create(
                     usuario=request.user,
                     total=Decimal('0.00')
@@ -420,7 +418,6 @@ class VentaViewSet(viewsets.ModelViewSet):
 
                 total_venta = Decimal('0.00')
 
-                # 2. Procesar cada producto
                 for item in productos_data:
                     producto_id = item['producto_id']
                     cantidad = int(item['cantidad'])
@@ -436,11 +433,9 @@ class VentaViewSet(viewsets.ModelViewSet):
                             f'Disponible: {producto.stock}, solicitado: {cantidad}.'
                         )
 
-                    # Calcular subtotal con el precio actual del producto
                     precio_unitario = producto.precio_venta
                     subtotal = precio_unitario * cantidad
 
-                    # Crear el detalle
                     DetalleVenta.objects.create(
                         venta=venta,
                         producto=producto,
@@ -449,17 +444,14 @@ class VentaViewSet(viewsets.ModelViewSet):
                         subtotal=subtotal
                     )
 
-                    # Descontar stock
                     producto.stock -= cantidad
                     producto.save()
 
                     total_venta += subtotal
 
-                # 3. Actualizar el total de la venta
                 venta.total = total_venta
                 venta.save()
 
-            # 4. Devolver la venta creada con sus detalles
             return Response(
                 VentaSerializer(venta).data,
                 status=status.HTTP_201_CREATED
@@ -474,7 +466,6 @@ class VentaViewSet(viewsets.ModelViewSet):
             )
 
     def destroy(self, request, *args, **kwargs):
-        """Elimina una venta y revierte el stock de los productos vendidos."""
         try:
             venta = self.get_object()
         except Http404:
@@ -482,7 +473,6 @@ class VentaViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # Revertir el stock de cada producto
                 for detalle in venta.detalles.all():
                     producto = detalle.producto
                     producto.stock += detalle.cantidad
@@ -494,12 +484,8 @@ class VentaViewSet(viewsets.ModelViewSet):
                 {'error': f'Error al eliminar la venta: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-            
+
     def get_permissions(self):
-        """
-        - DELETE: solo Administrador
-        - Otros métodos (GET, POST): cualquier usuario autenticado
-        """
         if self.action == 'destroy':
             return [IsAdminUser()]
         return [IsAuthenticated()]
