@@ -134,6 +134,7 @@ apiUrl: 'https://librerianazareth.alwaysdata.net/'
 | POST | `/api/auth/login/` | Login (email, password) |
 | POST | `/api/auth/refresh/` | Refrescar token |
 | GET | `/api/auth/me/` | Perfil del usuario logueado |
+| POST | `/api/auth/register/` | Auto-registro público. Siempre crea usuario con rol **Empleado**. | público |
 
 ### Usuarios
 
@@ -147,13 +148,15 @@ apiUrl: 'https://librerianazareth.alwaysdata.net/'
 
 ### Productos
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/productos/` | Listar productos |
-| POST | `/api/productos/` | Crear producto |
-| GET | `/api/productos/{id}/` | Ver producto |
-| PUT | `/api/productos/{id}/` | Actualizar producto |
-| DELETE | `/api/productos/{id}/` | Eliminar producto (admin) |
+| Método | Endpoint | Descripción | Permisos |
+|--------|----------|-------------|----------|
+| GET | `/api/productos/?page=N` | Listar productos paginados (10 por página) | autenticado |
+| GET | `/api/productos/?search=texto` | Buscar productos por nombre (parcial, case-insensitive) | autenticado |
+| GET | `/api/productos/?codigo_barras=XXX` | Buscar producto por código de barras (exacto) | autenticado |
+| POST | `/api/productos/` | Crear producto. Acepta `marca_nombre` y `rubro_nombre` (crea la marca/rubro si no existe) | autenticado |
+| GET | `/api/productos/{id}/` | Ver producto | autenticado |
+| PUT/PATCH | `/api/productos/{id}/` | Actualizar producto (acepta `marca_nombre` y `rubro_nombre`) | autenticado |
+| DELETE | `/api/productos/{id}/` | Eliminar producto | **admin** |
 
 ### Rubros
 
@@ -177,12 +180,18 @@ apiUrl: 'https://librerianazareth.alwaysdata.net/'
 
 ### Ventas
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/ventas/` | Listar ventas |
-| POST | `/api/ventas/` | Crear venta |
-| GET | `/api/ventas/{id}/` | Ver venta |
-| DELETE | `/api/ventas/{id}/` | Eliminar venta (admin) |
+| Método | Endpoint | Descripción | Permisos |
+|--------|----------|-------------|----------|
+| GET | `/api/ventas/?filtro=hoy` | Listar ventas del día (sin detalles, paginado) | admin |
+| GET | `/api/ventas/?filtro=mes` | Listar ventas del mes (sin detalles, paginado) | admin |
+| GET | `/api/ventas/?page=N` | Listar todas las ventas paginadas | admin |
+| POST | `/api/ventas/` | Registrar venta. Body: `{"productos": [{"producto_id": X, "cantidad": N}, ...]}`. Descuenta stock. | autenticado |
+| GET | `/api/ventas/{id}/` | Ver detalle de una venta (con items, incluye `producto_nombre`) | admin |
+| DELETE | `/api/ventas/{id}/` | Eliminar venta. **Revierte el stock** de los productos vendidos. | **admin** |
+
+> **Nota:** el endpoint de listado devuelve una versión resumida de cada venta (`id`, `usuario_nombre`, `fecha`, `total`). El detalle completo (con productos) se obtiene con `GET /api/ventas/{id}/`.
+
+> **Error común:** si un producto no tiene stock suficiente, `POST /api/ventas/` devuelve **400** con `{"error": "Stock insuficiente para ..."}`. No se guarda nada (transacción atómica).
 
 ### Carga masiva y aumentos
 
@@ -206,6 +215,21 @@ apiUrl: 'https://librerianazareth.alwaysdata.net/'
 
 ---
 
+## 👥 Roles y permisos
+
+El sistema maneja 2 roles, implementados como **grupos de Django**:
+
+| Rol | Puede hacer |
+|-----|-------------|
+| **Administrador** | Todo: gestionar usuarios, ver y eliminar ventas, crear/editar/eliminar productos, etc. |
+| **Empleado** | Ver catálogo, crear/editar productos, registrar ventas. **NO puede** gestionar usuarios, ni eliminar productos/ventas, ni ver la lista de ventas (solo crear nuevas). |
+
+**Notas**:
+- Los usuarios **auto-registrados** por `/api/auth/register/` siempre obtienen el rol **Empleado**.
+- El rol se devuelve en `GET /api/auth/me/` como `"role": "Administrador"` o `"role": "Empleado"`.
+
+
+  
 ## 🆘 Problemas comunes
 
 ### "No se puede conectar al servidor" desde la app
