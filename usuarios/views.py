@@ -1,8 +1,10 @@
-from rest_framework import generics, permissions, serializers
+from rest_framework import generics, permissions, serializers, status
+from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .serializers import RegisterSerializer, UserSerializer, EmailTokenObtainPairSerializer, RegisterPublicSerializer
 from .permissions import IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
 
 #CRUD Usuario
 #Eliminamos RegisterView porque no queremos que los usuarios se registren por sí mismos, solo el administrador puede crear usuarios.
@@ -21,13 +23,26 @@ class UserProfileView(generics.RetrieveAPIView):
         return self.request.user
     
 class RegisterPublicView(generics.CreateAPIView):
-    """
-    Endpoint público para que un usuario se registre por sí mismo.
-    Siempre se crea con rol 'Empleado'para evitar escalada de privilegios.
-    """
     queryset = User.objects.all()
     serializer_class = RegisterPublicSerializer
     permission_classes = (permissions.AllowAny,)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'username': user.username,
+            'email': user.email,
+            'nombre': user.first_name,
+            'apellido': user.last_name,
+            'role': 'Empleado',
+        }, status=status.HTTP_201_CREATED)
     
     
 #CRUD Administrador (para que cree, modifique y elimine empleados)
