@@ -10,10 +10,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
+    nombre = serializers.CharField(source='first_name', required=False, allow_blank=True)
+    apellido = serializers.CharField(source='last_name', required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'role')
+        fields = ('username', 'email', 'password', 'role', 'nombre', 'apellido')
 
     def create(self, validated_data):
         role = validated_data.pop('role', 'Empleado')
@@ -96,10 +98,12 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 class RegisterPublicSerializer(serializers.ModelSerializer):
 
     password = serializers.CharField(write_only=True, min_length=8)
+    nombre = serializers.CharField(source='first_name', required=True)
+    apellido = serializers.CharField(source='last_name', required=True)
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password')
+        fields = ('username', 'email', 'password', 'nombre', 'apellido')
 
     def create(self, validated_data):
         # Siempre se crea como Empleado (sin opción a elegir)
