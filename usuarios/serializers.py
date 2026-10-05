@@ -56,6 +56,7 @@ class UserSerializer(serializers.ModelSerializer):
         group = obj.groups.first()
         return group.name if group else None
     
+    
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     #forzamos que busque por email (tiene por defecto username)
     def __init__(self, *args, **kwargs):
@@ -89,3 +90,20 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
             'access': str(refresh.access_token),
         }
         return data
+    
+    
+#Serializer para el auto-registro público. Fuerza siempre el rol 'Empleado' para evitar escalada de privilegios.
+class RegisterPublicSerializer(serializers.ModelSerializer):
+
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'password')
+
+    def create(self, validated_data):
+        # Siempre se crea como Empleado (sin opción a elegir)
+        user = User.objects.create_user(**validated_data)
+        group = Group.objects.get(name='Empleado')
+        user.groups.add(group)
+        return user
