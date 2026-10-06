@@ -486,6 +486,6 @@ class VentaViewSet(viewsets.ModelViewSet):
             )
 
     def get_permissions(self):
-        if self.action == 'destroy':
+        if self.action in ['list', 'retrieve', 'destroy']:
             return [IsAdminUser()]
         return [IsAuthenticated()]
