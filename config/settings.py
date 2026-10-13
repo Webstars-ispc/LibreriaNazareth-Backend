@@ -102,6 +102,17 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    # Rate limiting / throttling (respuestas HTTP 429 con header Retry-After)
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.getenv('THROTTLE_RATE_ANON', '60/min'),
+        'user': os.getenv('THROTTLE_RATE_USER', '120/min'),
+        'login': os.getenv('THROTTLE_RATE_LOGIN', '10/min'),
+        'register': os.getenv('THROTTLE_RATE_REGISTER', '5/min'),
+    },
 }
 
 SIMPLE_JWT = {

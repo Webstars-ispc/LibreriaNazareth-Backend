@@ -1,5 +1,6 @@
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from django.contrib.auth.models import User
 from .serializers import RegisterSerializer, UserSerializer, EmailTokenObtainPairSerializer, RegisterPublicSerializer
 from .permissions import IsAdminUser
@@ -11,6 +12,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 class LoginView(TokenObtainPairView):
     permission_classes = (permissions.AllowAny,)
     serializer_class = EmailTokenObtainPairSerializer
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'login'
 
 class RefreshView(TokenRefreshView):
     permission_classes = (permissions.AllowAny,)
@@ -26,6 +29,8 @@ class RegisterPublicView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterPublicSerializer
     permission_classes = (permissions.AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = 'register'
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

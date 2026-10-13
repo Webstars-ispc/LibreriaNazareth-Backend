@@ -59,6 +59,7 @@ LibreriaNazareth-Backend/
 │
 ├── config/                       # Configuración del proyecto Django
 │   ├── settings.py
+│   ├── settings_test.py          # Settings para correr los tests (SQLite en memoria)
 │   ├── urls.py
 │   ├── asgi.py
 │   └── wsgi.py
@@ -68,6 +69,8 @@ LibreriaNazareth-Backend/
 │   ├── admin.py
 │   ├── apps.py
 │   ├── email_backend.py
+│   ├── exceptions.py             # AccountLocked (HTTP 423)
+│   ├── lockout.py                # Bloqueo temporal por intentos fallidos
 │   ├── models.py
 │   ├── permissions.py
 │   ├── serializers.py
@@ -131,10 +134,10 @@ apiUrl: 'https://librerianazareth.alwaysdata.net/'
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| POST | `/api/auth/login/` | Login (email, password) |
+| POST | `/api/auth/login/` | Login (email, password). **Rate limit 10/min** (429) y bloqueo por intentos fallidos (423). |
 | POST | `/api/auth/refresh/` | Refrescar token |
 | GET | `/api/auth/me/` | Perfil del usuario logueado |
-| POST | `/api/auth/register/` | Auto-registro público. Siempre crea usuario con rol **Empleado**. | público |
+| POST | `/api/auth/register/` | Auto-registro público. Siempre crea usuario con rol **Empleado**. **Rate limit 5/min** (429). | público |
 
 ### Usuarios
 
@@ -228,6 +231,53 @@ El sistema maneja 2 roles, implementados como **grupos de Django**:
 - Los usuarios **auto-registrados** por `/api/auth/register/` siempre obtienen el rol **Empleado**.
 - El rol se devuelve en `GET /api/auth/me/` como `"role": "Administrador"` o `"role": "Empleado"`.
 
+---
+
+## 🛡️ Rate limiting y bloqueo temporal de cuenta
+
+### Rate limiting / throttling (DRF)
+
+Todas las respuestas excedidas vuelven **HTTP 429** con el header **`Retry-After`** (segundos para reintentar).
+
+| Scope | Rate por defecto | Variables de entorno |
+|-------|------------------|----------------------|
+| Anónimos (`anon`) | 60/min | `THROTTLE_RATE_ANON` |
+| Autenticados (`user`) | 120/min | `THROTTLE_RATE_USER` |
+| Login (`login`) | 10/min por IP | `THROTTLE_RATE_LOGIN` |
+| Registro (`register`) | 5/min por IP | `THROTTLE_RATE_REGISTER` |
+
+Se configuran en `config/settings.py` → `REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']`.
+
+### Bloqueo temporal de cuenta
+
+Ante **5 intentos fallidos** de login con el mismo email, la cuenta queda bloqueada **15 minutos**:
+
+- Se responde **HTTP 423 (Locked)** con header `Retry-After` y el body:
+  ```json
+  {"message": "Cuenta bloqueada tras 5 intentos fallidos. Intentá de nuevo en 15 minuto(s).", "retry_after": 900}
+  ```
+- Mientras esté bloqueada, **ni siquiera la contraseña correcta** es aceptada.
+- Un login exitoso **reinicia** el contador; si pasan 30 minutos entre fallos, el contador vuelve a cero por inactividad.
+- Los intentos se guardan en la tabla `usuarios_loginattempt` (modelo `usuarios.models.LoginAttempt`).
+
+**Variables clave** (en `usuarios/lockout.py`): `MAX_FAILED_ATTEMPTS = 5`, `LOCKOUT_DURATION = 15 min`, `ATTEMPT_RESET_WINDOW = 30 min`.
+
+### Desplegar este cambio
+
+```bash
+python manage.py migrate   # crea la tabla usuarios_loginattempt
+touch ~/LibreriaNazareth-Backend/__init__.py   # reinicia uWSGI en AlwaysData
+```
+
+### Tests
+
+```bash
+python manage.py test usuarios --settings=config.settings_test
+```
+
+`config/settings_test.py` usa SQLite en memoria y desactiva el redirect HTTPS para poder testear la API sin MySQL.
+
+---
 
   
 ## 🆘 Problemas comunes
@@ -242,6 +292,16 @@ El sistema maneja 2 roles, implementados como **grupos de Django**:
 
 - El token JWT expiró (dura 1 hora) o no te logueaste.
 - Solución: volvé a loguearte en la app.
+
+### "429 Too Many Requests" en la API
+
+- Superaste el rate limit (login 10/min, registro 5/min, resto 60-120/min).
+- Solución: esperar los segundos que indica el header `Retry-After` y reintentar.
+
+### "423 Locked" al loguearse
+
+- La cuenta superó 5 intentos fallidos y está bloqueada 15 minutos.
+- Solución: esperar los segundos de `retry_after` (o que un admin resetee la fila de `usuarios_loginattempt`).
 
 ### "DisallowedHost" al entrar a la URL
 
