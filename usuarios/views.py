@@ -72,20 +72,27 @@ class AdminUserCreateView(generics.CreateAPIView):
 
         return response
 
+
 class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Ver, modificar o eliminar un usuario específico"""
+    """Ver o eliminar un usuario específico; no permite editarlo."""
     queryset = User.objects.all()
     permission_classes = (IsAdminUser,)
 
-    def get_serializer_class(self):
-        # Para actualizar usamos el RegisterSerializer (permite cambiar contraseña y rol)
-        if self.request.method in ('PUT', 'PATCH'):
-            return RegisterSerializer
-        # Para ver detalles usamos el UserSerializer (sin contraseña)
-        return UserSerializer
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {
+                "detail": (
+                    "La edición de usuarios está deshabilitada "
+                    "por política de seguridad."
+                )
+            },
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
 
     def perform_destroy(self, instance):
         # Evita que un administrador se elimine a sí mismo
         if instance == self.request.user:
-            raise serializers.ValidationError("No podés eliminar tu propio usuario.")
+            raise serializers.ValidationError(
+                "No podés eliminar tu propio usuario."
+            )
         instance.delete()

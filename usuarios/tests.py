@@ -160,3 +160,60 @@ class LockoutHelperTests(BaseThrottleTestCase):
         register_failure('  Mixta@Test.COM ')
         self.assertTrue(LoginAttempt.objects.filter(email='mixta@test.com').exists())
         self.assertEqual(check_lockout('MIXTA@test.com'), 0)
+        class AdminUserEditSecurityTests(TestCase):
+          """Verifica que la API no permita editar usuarios."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='admin_seguridad',
+            email='admin_seguridad@test.com',
+            password='AdminTest123!'
+        )
+        self.employee = User.objects.create_user(
+            username='empleado_prueba',
+            email='empleado_prueba@test.com',
+            password='EmpleadoTest123!'
+        )
+
+        # El permiso IsAdminUser del proyecto exige pertenecer
+        # al grupo Administrador.
+        from django.contrib.auth.models import Group
+        grupo_admin, _ = Group.objects.get_or_create(name='Administrador')
+        self.admin.groups.add(grupo_admin)
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.admin)
+
+    def test_put_user_is_rejected(self):
+        response = self.client.put(
+            '/api/auth/usuarios/{}/'.format(self.employee.pk),
+            {
+                'username': 'empleado_modificado',
+                'email': 'empleado_prueba@test.com',
+                'password': 'OtraClave123!'
+            },
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.username, 'empleado_prueba')
+
+    def test_patch_user_is_rejected(self):
+        response = self.client.patch(
+            '/api/auth/usuarios/{}/'.format(self.employee.pk),
+            {'username': 'empleado_modificado'},
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.username, 'empleado_prueba')
