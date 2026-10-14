@@ -1,6 +1,6 @@
 from rest_framework import generics, permissions, serializers
 from django.contrib.auth.models import User
-from .serializers import RegisterSerializer, UserSerializer, EmailTokenObtainPairSerializer
+from .serializers import RegisterSerializer, UserSerializer, EmailTokenObtainPairSerializer, RegisterPublicSerializer
 from .permissions import IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -19,6 +19,16 @@ class UserProfileView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+    
+class RegisterPublicView(generics.CreateAPIView):
+    """
+    Endpoint público para que un usuario se registre por sí mismo.
+    Siempre se crea con rol 'Empleado'para evitar escalada de privilegios.
+    """
+    queryset = User.objects.all()
+    serializer_class = RegisterPublicSerializer
+    permission_classes = (permissions.AllowAny,)
+    
     
 #CRUD Administrador (para que cree, modifique y elimine empleados)
 class AdminUserListView(generics.ListAPIView):

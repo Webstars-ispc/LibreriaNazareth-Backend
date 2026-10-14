@@ -1,11 +1,12 @@
 from django.urls import path
-from .views import LoginView, RefreshView, UserProfileView, AdminUserListView, AdminUserCreateView, AdminUserDetailView
+from .views import LoginView, RefreshView, UserProfileView, AdminUserListView, AdminUserCreateView, AdminUserDetailView, RegisterPublicView
 
 urlpatterns = [
     #autenticacion
     path('login/', LoginView.as_view(), name='token_obtain_pair'),
     path('refresh/', RefreshView.as_view(), name='token_refresh'),
     path('me/', UserProfileView.as_view(), name='user_profile'), #sirve para devolver quien iniciò sesion
+    path('register/', RegisterPublicView.as_view(), name='public_register'),
     
     #gestion de usuarios por parte del admin
     path('usuarios/', AdminUserListView.as_view(), name='admin_user_list'),
