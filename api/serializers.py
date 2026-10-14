@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Rubro, Marca, Producto, Venta, DetalleVenta
 from unidecode import unidecode
 
+
 def estandarizar(texto):
     if not texto:
         return texto
@@ -21,7 +22,12 @@ class MarcaSerializer(serializers.ModelSerializer):
 
 
 class ProductoSerializer(serializers.ModelSerializer):
-    marca_nombre = serializers.CharField(
+
+    # Campo de LECTURA: se devuelve en GET
+    marca_nombre = serializers.SerializerMethodField()
+
+    # Campo de ESCRITURA: se acepta en POST/PUT
+    marca_nombre_input = serializers.CharField(
         write_only=True,
         required=False,
         allow_blank=True,
@@ -36,8 +42,12 @@ class ProductoSerializer(serializers.ModelSerializer):
         model = Producto
         fields = '__all__'
 
+    def get_marca_nombre(self, obj):
+        """Devuelve el nombre de la marca o None si no tiene."""
+        return obj.marca.nombre if obj.marca else None
+
     def _resolve_marca(self, validated_data):
-        nombre = validated_data.pop('marca_nombre', None)
+        nombre = validated_data.pop('marca_nombre_input', None)
         if nombre is not None:
             nombre = estandarizar(nombre)
             if nombre:
