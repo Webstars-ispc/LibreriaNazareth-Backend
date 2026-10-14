@@ -58,10 +58,19 @@ class AdminUserListView(generics.ListAPIView):
     permission_classes = (IsAdminUser,)
 
 class AdminUserCreateView(generics.CreateAPIView):
-    """Crear un nuevo usuario"""
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = (IsAdminUser,)
+
+    def create(self, request, *args, **kwargs):
+        print(">>> LLEGÓ UNA SOLICITUD PARA CREAR USUARIO")
+        print(">>> DATOS RECIBIDOS:", request.data)
+
+        response = super().create(request, *args, **kwargs)
+
+        print(">>> RESPUESTA:", response.status_code, response.data)
+
+        return response
 
 class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Ver, modificar o eliminar un usuario específico"""
