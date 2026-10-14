@@ -2,6 +2,9 @@ from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from .exceptions import AccountLocked
+from .lockout import MAX_FAILED_ATTEMPTS, check_lockout, register_failure, reset_failures
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -72,18 +75,32 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         email = attrs.get('email')
         password = attrs.get('password')
 
+        # Si la cuenta está bloqueada ni intentamos validar credenciales
+        locked_for = check_lockout(email)
+        if locked_for:
+            raise self._locked_error(locked_for)
+
         # Buscamos al usuario por email
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
+            locked_for = register_failure(email)
+            if locked_for:
+                raise self._locked_error(locked_for)
             raise serializers.ValidationError('Credenciales inválidas.')
 
         # Verificamos la contraseña
         if not user.check_password(password):
+            locked_for = register_failure(email)
+            if locked_for:
+                raise self._locked_error(locked_for)
             raise serializers.ValidationError('Credenciales inválidas.')
 
         if not user.is_active:
             raise serializers.ValidationError('Usuario inactivo.')
+
+        # Login exitoso: limpiamos el contador de intentos fallidos
+        reset_failures(email)
 
         # Generamos los tokens
         refresh = self.get_token(user)
@@ -92,6 +109,20 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
             'access': str(refresh.access_token),
         }
         return data
+
+    @staticmethod
+    def _locked_error(retry_after):
+        minutes = max(1, round(retry_after / 60))
+        return AccountLocked(
+            {
+                'message': (
+                    'Cuenta bloqueada tras %d intentos fallidos. '
+                    'Intentá de nuevo en %d minuto(s).' % (MAX_FAILED_ATTEMPTS, minutes)
+                ),
+                'retry_after': retry_after,
+            },
+            wait=retry_after,
+        )
     
     
 #Serializer para el auto-registro público. Fuerza siempre el rol 'Empleado' para evitar escalada de privilegios.
